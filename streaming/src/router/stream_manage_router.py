@@ -8,6 +8,7 @@ from services.stream_manage import StreamManage
 global stream_manage
 
 router = APIRouter(prefix="/stream-manage")
+print("start streaming router")
 stream_manage = StreamManage()
 
 @router.post("/camera", response_model=model.Reponse[model.CameraResponse])

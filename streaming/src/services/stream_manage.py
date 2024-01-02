@@ -24,17 +24,20 @@ class StreamManage:
         self._cameras_rtsp_link = []
 
         self._prefix_topic = "streaming_"
-    
         self.init()
     
     def get_camera_by_server_name(self):
         try:
             server_name = get_computer_name()
+            print("server_name: ", server_name)
             root_url = f'http://{project_config.SERVER_BE_IP}:8080/camera/{server_name}'
+            print('url_server: ', root_url)
             res = requests.get(root_url)
             content = res.json()
+            print("res: ", content['data']['cameras'])
             return content['data']['cameras']
-        except:
+        except Exception as e:
+            print(str(e))
             return []
     
     def update_ip(self):
@@ -50,7 +53,6 @@ class StreamManage:
     def init(self):
         self.update_ip()        
         all_records = self.get_camera_by_server_name()
-        
         for record in all_records:
             record.pop("id")
             camera = model.Camera(**record)

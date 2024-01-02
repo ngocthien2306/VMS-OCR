@@ -3,12 +3,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+import sys
+print(sys.path)
+
 from utils.logging_system import logger
 from utils.project_config import project_config
 from router.docs_router import add_docs_router
 from router import stream_manage_router, onvif_router
 from pathlib import Path
 import multiprocessing
+import os
 
 app = FastAPI(
     version=1.0,
@@ -29,14 +33,13 @@ app.add_middleware(
 add_docs_router(app)
 app.include_router(stream_manage_router.router, tags=['Streaming'])
 app.include_router(onvif_router.router, tags=['Onvif'])
-
-app.mount("/public", StaticFiles(directory="../logs"), name="public")
+app.mount("/public", StaticFiles(directory="logs"), name="public")
 
 @app.get(
     path="/public"
 )
 async def post_media_file(file_path):
-    video_path = Path("../logs/") / file_path
+    video_path = Path("logs/") / file_path
     print(video_path)
     return FileResponse(video_path, media_type="video/mp4", headers={"Content-Type": "video/mp4"})
 
@@ -54,4 +57,4 @@ if __name__ == '__main__':
     # multiprocessing.freeze_support()
     # multiprocessing.set_start_method('spawn')
     logger.info(f"Starting Camera Service - Config: {project_config.dict()}")
-    uvicorn.run(app, host="26.14.138.89", port=project_config.CAMERA_SERVICE_PORT)
+    uvicorn.run(app, host="172.20.10.2", port=project_config.CAMERA_SERVICE_PORT)

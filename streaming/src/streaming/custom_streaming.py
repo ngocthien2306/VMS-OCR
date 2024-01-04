@@ -27,12 +27,17 @@ class CustomStreaming:
         
         try:
             while True:
-                _, frame = self._video_capture.read()
+                ret, frame = self._video_capture.read()
+                if 'http' not in self.rtsp_link:
+                    current_frame = self._video_capture.get(cv2.CAP_PROP_POS_FRAMES)
+                    total_frames = self._video_capture.get(cv2.CAP_PROP_FRAME_COUNT)
+                    if current_frame >= total_frames:
+                        self._video_capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    
                 frame = cv2.resize(frame, (self.width_frame, self.height_frame))
                 _, buf = cv2.imencode(".jpeg", frame.copy())
                 self.image_arr = frame.copy()
                 self.image_bytes = buf.tobytes()
-                # cv2.imshow('frame', frame) 
 
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break

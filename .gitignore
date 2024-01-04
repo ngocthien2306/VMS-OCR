@@ -160,5 +160,13 @@ cython_debug/
 #.idea/
 
 
-ocr/data/models
-vehicle-detection/models
+ocr/data/models/
+models/
+vehicle-detection/models/
+vehicle-detection/module_ocr/doc
+vehicle-detection/module_ocr/inference
+vehicle-detection/module_ocr/deploy
+vehicle-detection/module_ocr/applications
+
+
+

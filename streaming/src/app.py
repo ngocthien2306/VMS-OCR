@@ -57,4 +57,4 @@ if __name__ == '__main__':
     # multiprocessing.freeze_support()
     # multiprocessing.set_start_method('spawn')
     logger.info(f"Starting Camera Service - Config: {project_config.dict()}")
-    uvicorn.run(app, host="172.20.10.2", port=project_config.CAMERA_SERVICE_PORT)
+    uvicorn.run(app, host="26.14.138.89", port=project_config.CAMERA_SERVICE_PORT)

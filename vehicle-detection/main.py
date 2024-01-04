@@ -6,7 +6,7 @@ def parse_arguments():
     # Add any command-line arguments you need
     parser.add_argument('--module', default='fence', type=str, help='Description of argument 1')
     args = parser.parse_args()
-    return args
+    return args 
 
 if __name__ == "__main__":
     args = parse_arguments()

@@ -5,7 +5,7 @@ from matplotlib import path
 import socket
 import requests
 
-SERVER_BE_IP = '172.20.10.2'
+SERVER_BE_IP = '26.14.138.89'
 TRANSPARENT_SCORE = 0.3
 LINE_AREA_COLOR = (94, 73, 52)
 CLASSES = [2,3,5,7]
@@ -31,7 +31,7 @@ def crop_image_by_polygon(image, polygon_points):
 def get_ipv4_address():
     hostname = socket.gethostname()
     ipv4_address = socket.gethostbyname(hostname)
-    return '172.20.10.2'
+    return '26.14.138.89'
 
 def get_computer_name():
     computer_name = socket.gethostname()

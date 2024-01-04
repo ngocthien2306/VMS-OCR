@@ -18,8 +18,8 @@ from ultralytics import YOLO
 
 
 MODULE_ID = "vms"
-VEHICLE_DETECTOR = YOLO("models/yolov8m.pt", task='detect')
-LP_DETECTOR =  YOLO("models/license_plate_detector.pt", task='detect')
+VEHICLE_DETECTOR = YOLO("../models/yolov8m.pt", task='detect')
+LP_DETECTOR =  YOLO("../models/lp_best_s.pt", task='detect')
 
 def initialize_logic_handler(camera_ids, polygons):
     dict_points = get_polygon_points()
@@ -53,7 +53,7 @@ def initialize_logic_handler(camera_ids, polygons):
         
 def initialize_socket(logic_handlers):
     server_instance = sokect_server.SocketIOServer(logic_handlers)
-
+ 
     def run_server():
         server_instance.run()
 
@@ -63,14 +63,20 @@ def initialize_socket(logic_handlers):
     eventlet.sleep(1)
     
 def object_detection(frames_dict):
-    predictions = VEHICLE_DETECTOR.predict(list(frames_dict.values()), verbose=False, classes=CLASSES, conf=0.4)
-    results = {}
+    predictions_vehicle = VEHICLE_DETECTOR.predict(list(frames_dict.values()), verbose=False, classes=CLASSES, conf=0.3)
+    predictions_lp = LP_DETECTOR.predict(list(frames_dict.values()), verbose=False, conf=0.3)
+    results_vehicle = {}
+    results_lp = {}
     
     if len(list(frames_dict.keys())) > 0:
-        for predict, camera_id in zip(predictions, list(frames_dict.keys())):
-            results[camera_id] = predict
+        for predict, camera_id in zip(predictions_vehicle, list(frames_dict.keys())):
+            results_vehicle[camera_id] = predict
             
-    return results
+        for predict, camera_id in zip(predictions_lp, list(frames_dict.keys())):
+            results_lp[camera_id] = predict
+                   
+            
+    return results_vehicle, results_lp
 
 
 
@@ -78,14 +84,12 @@ def inference_module(logic_handlers, frame_reader):
     while True:
         try:
             frames_dict = frame_reader.get_last_frames()
-            results = object_detection(frames_dict.copy())
+            results_vehicle, results_lp = object_detection(frames_dict.copy())
             
-            if results is None:
-                break
             for frame_dict in frames_dict.items():
                 key, value = frame_dict
 
-                logic_handlers[key].run(value, results[key])
+                logic_handlers[key].run(value, results_vehicle[key], results_lp[key])
                 logic_handlers[key].fps(show=True)
                 
             key = cv2.waitKey(1) & 0xFF
@@ -93,7 +97,7 @@ def inference_module(logic_handlers, frame_reader):
                 break
 
         except Exception as e:
-            print(str(e))
+            traceback.print_exc()
             continue
 
 def main():
@@ -101,7 +105,7 @@ def main():
     camera_ids, polygons = get_camera_data()
     frame_reader = FrameReader(camera_ids)
     logic_handlers = initialize_logic_handler(camera_ids, polygons)
-    initialize_socket(logic_handlers)
+    # initialize_socket(logic_handlers)
     inference_module(logic_handlers, frame_reader)
 
         

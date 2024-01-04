@@ -52,18 +52,18 @@ def draw_area(area_config, image):
     image = cv2.addWeighted(overlay, TRANSPARENT_SCORE, image, 1 - TRANSPARENT_SCORE, 0)
     return image
 
-def plot_detection_result(box, frame, color=(0, 255, 0), label=None, txt_color=(255, 255, 255), line_width=None):
+def plot_detection_result(box, frame, color=(0, 255, 0), label=None, conf=0.0, txt_color=(255, 255, 255), line_width=None):
     p1, p2 = (int(box[0]), int(box[1])), (int(box[2]), int(box[3]))
-    lw = line_width or int(round(0.002 * (frame.shape[0] + frame.shape[1]) / 2)) + 1  # line thickness
+    lw = line_width or int(round(0.002 * (frame.shape[0] + frame.shape[1]) / 2)) # line thickness
     cv2.rectangle(frame, p1, p2, color, thickness=lw, lineType=cv2.LINE_AA)
     if label:
         tf = max(lw - 1, 1)  # font thickness
-        w, h = cv2.getTextSize(label, 0, fontScale=lw / 3, thickness=tf)[0]  # text width, height
+        w, h = cv2.getTextSize(label + ' - '+ str(round(conf, 2) * 100), 0, fontScale=lw / 3, thickness=tf)[0]  # text width, height
         outside = p1[1] - h >= 3
         p2 = p1[0] + w, p1[1] - h - 3 if outside else p1[1] + h + 3
         cv2.rectangle(frame, p1, p2, color, -1, cv2.LINE_AA)  # filled
         cv2.putText(frame,
-                    label, (p1[0], p1[1] - 2 if outside else p1[1] + h + 2),
+                    label + ' - ' + str(round(conf, 2) * 100), (p1[0], p1[1] - 2 if outside else p1[1] + h + 2),
                     0,
                     lw / 3,
                     txt_color,

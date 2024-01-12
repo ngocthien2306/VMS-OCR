@@ -1,17 +1,3 @@
-# Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 import argparse
 import os
 import sys
@@ -85,7 +71,7 @@ def init_args():
     parser.add_argument("--fourier_degree", type=int, default=5)
 
     # params for text recognizer
-    parser.add_argument("--rec_algorithm", type=str, default='VisionLAN') # SVTR_LCNet
+    parser.add_argument("--rec_algorithm", type=str, default='SVTR_LCNet') # SVTR_LCNet
     parser.add_argument("--rec_model_dir", type=str)
     parser.add_argument("--rec_image_inverse", type=str2bool, default=True)
     parser.add_argument("--rec_image_shape", type=str, default="3, 48, 320")

@@ -6,6 +6,7 @@ import imageio
 AREA_COLOR = (0, 0, 100)
 TRANSPARENT_SCORE = 0.5
 LINE_AREA_COLOR = (58, 58, 58)
+SAVE_PATH = "C:/Users/Admin/source/repos/VMS-OCR/vehicle-detection/logs/"
 
 def read_image(path):
     return cv2.imread(path)

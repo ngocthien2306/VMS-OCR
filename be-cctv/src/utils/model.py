@@ -12,7 +12,8 @@ class Event(BaseModel):
     timestamp: int
     image_uri: str
     msgType: int
-
+    lp: str
+    image_base64: str
 
 class EventVideo(BaseModel):
     camera_id: str

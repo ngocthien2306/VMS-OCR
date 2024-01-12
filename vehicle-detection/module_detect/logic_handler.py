@@ -8,10 +8,9 @@ import cv2
 import threading
 from system.image_utils import *
 from system.sort import *
-from module_ocr.paddleocr import ocr_model_init
 
 class LogicHandler:
-    def __init__(self, config: LogicConfig, points, camera_id, lp_detector) -> None:
+    def __init__(self, config: LogicConfig, points, camera_id, ocr_init) -> None:
         self._config = config
         if self._config.event_handler_config is not None:
             self._event_handler = EventHandler(self._config.event_handler_config)
@@ -22,15 +21,12 @@ class LogicHandler:
         else:
             self._plc_controller = PLCControllerBase(self._config.plc_controller_config)
             
-        self.ocr_model, self.args = ocr_model_init()
+        self.ocr_model, self.args = ocr_init
 
-        self.lp_detector = lp_detector
         self.mot_tracker = Sort()
         self._queue = []
-        self._number_true_frame = 7
-        self._last_event_timestamp = 0
-        self._last_handle_wrong = True
-
+        self._current_vehicles = None
+        self._current_frame = None
         self._points = points
         self.colors = {}
         self._camera_id = camera_id
@@ -41,10 +37,14 @@ class LogicHandler:
         self.is_start_record = False
 
         self._current_fps = 0
+        self._warmup = 15
+        self._histories = {}
+        self._prev_send_lp = None
         
-        # self._thread = threading.Thread(target=self.run_thread) 
-        # self._thread.daemon = True
-        # self._thread.start()
+        self._thread = threading.Thread(target=self.run_thread) 
+        self._thread.daemon = True
+        self._thread.start()
+        
 
     def fps(self, f=1.0, show=False):
         self._end_time = time.time()
@@ -86,7 +86,7 @@ class LogicHandler:
                 if car_id != -1:
                     
                     margin = 0  # Adjust this value based on your requirement
-                    alpha = 2  # Adjust this value for the resizing factor
+                    alpha = 5  # Adjust this value for the resizing factor
 
                     # Calculate new coordinates with margin
                     x1_with_margin = max(0, int(x1) - margin)
@@ -102,7 +102,7 @@ class LogicHandler:
                     
                     cv2.imshow(self._camera_id + "_license_plate_crop", resized_license_plate_crop)
                     
-                    results = self.ocr_model.ocr(resized_license_plate_crop,
+                    results, _, _ = self.ocr_model.ocr(resized_license_plate_crop,
                                     det=self.args.det,
                                     rec=self.args.rec,
                                     cls=self.args.use_angle_cls,
@@ -110,55 +110,97 @@ class LogicHandler:
                                     inv=self.args.invert,
                                     alpha_color=self.args.alphacolor)
                     
+
+                    
                     if results[0] is not None:
+                        result_string = ''
+                        confs = 0
                         results = sorted(results[0], key=self.sorting_key)
-                        result_string = '-'.join(data[1][0] for data in results)
-                        
-                        confidence_scores = [box[1][1] for box in results]
-                        license_plate_text_score = sum(confidence_scores) / len(confidence_scores)
+                        dt_boxes = []
+                        for line in results:
+                            (p1, _, p3, _), (label, conf) = line
+                            confs += conf
+                            result_string += label
+                            box = (int(p1[0]), int(p1[1]), int(p3[0]), int(p3[1]))
+                            dt_boxes.append(box)
+                            
                         data = {'car': {'bbox': [xcar1, ycar1, xcar2, ycar2], 'bbox_score': bbox_score_vehicle},
                                                     'license_plate': {'bbox': [x1, y1, x2, y2],
                                                                         'text': result_string,
                                                                         'bbox_score': score,
-                                                                        'text_score': license_plate_text_score}}
+                                                                        'text_score': confs / len(results),
+                                                                        'image': resized_license_plate_crop,
+                                                                        'dt_boxes': dt_boxes}}
                         vehicles.append(data)
-                        print(data)
                         print("--------------------------------------------")
         
+        self._current_vehicles = vehicles
         for vehicle in vehicles:
             car = vehicle['car']
             lp_data = vehicle['license_plate']
             plot_detection_result(box=car['bbox'], frame=frame_plot, label='vehicle', conf=car['bbox_score'], color=(233, 193, 133))
             plot_detection_result(lp_data['bbox'], frame=frame_plot, label=lp_data['text'], conf=lp_data['text_score'], color=(99, 112, 236))
             
-        cv2.imshow(self._camera_id, frame_plot)
+        # cv2.imshow(self._camera_id, frame_plot)
             
         key = cv2.waitKey(1)
         if key == ord('q'):
             print()
 
         return vehicles, frame_plot
+    
+    def post_frame_thread(self, frame):
+        if self._current_vehicles is not None:
+            for vehicle in self._current_vehicles:
+                car = vehicle['car']
+                lp_data = vehicle['license_plate']
+                plot_detection_result(box=car['bbox'], frame=frame, label='vehicle', conf=car['bbox_score'], color=(233, 193, 133))
+                plot_detection_result(lp_data['bbox'], frame=frame, label=lp_data['text'], conf=lp_data['text_score'], color=(99, 112, 236))
+        self._event_handler.post_frame(frame)
         
-    def update(self, frame, result):
-        self._queue = [frame, result]
+    def update(self, frame, result_vehicle, results_lp):
+        self._current_frame = frame
+        self._queue = [frame, result_vehicle, results_lp]
         
     def run_thread(self):
         while True:
             if len(self._queue) > 0:
-                frame, result = self._queue
-                self.run(frame, result)
+                frame, result_vehicle, results_lp = self._queue
+                self.run(frame, result_vehicle, results_lp)
                 
             time.sleep(0.01)
         
     def run(self, frame, result_vehicle, results_lp):
-        is_wrong, frame_plot = self._process_frame(frame, result_vehicle, results_lp)
+        vehicles, frame_plot = self._process_frame(frame, result_vehicle, results_lp)
+        for vehicle in vehicles:
+            license_plate_text = vehicle['license_plate']['text']
+            if license_plate_text in self._histories:
+                self._histories[license_plate_text] += 1
+            else:
+                self._histories[license_plate_text] = 1
         
-        if is_wrong:
-            self._event_handler.update(frame, frame_plot)
-            
+            keys_to_remove = []
+
+            for key, value in self._histories.items():
+                if value > self._warmup and key != self._prev_send_lp:
+                    print("Trigger: ", key)
+                    for idx, box in enumerate(vehicle['license_plate']['dt_boxes']):
+                        image_lp = vehicle['license_plate']['image']
+                        x1, y1, x2, y2 = box
+                        image_crop = image_lp[y1:y2, x1:x2]
+                        save_img_path = SAVE_PATH + 'tests/' + str(int(time.time())) + f"{idx}.jpg"
+                        cv2.imwrite(save_img_path, image_crop) 
+                    self._event_handler.update(frame, frame_plot, key)
+                    self._prev_send_lp = key
+                    keys_to_remove.append(key)
+
+            # Remove the keys after the iteration is complete
+            for key in keys_to_remove:
+                self._histories.pop(key, None)
+
         self._event_handler.post_frame(frame_plot)
 
-        return is_wrong, frame_plot
+        return vehicles, frame_plot
 
     def count_frame(self):
         self._count_frame += 1

@@ -15,6 +15,7 @@ import threading
 import eventlet
 from system.utils import SERVER_BE_IP, CLASSES
 from ultralytics import YOLO
+from module_ocr.paddleocr import ocr_model_init
 
 
 MODULE_ID = "vms"
@@ -25,6 +26,7 @@ def initialize_logic_handler(camera_ids, polygons):
     dict_points = get_polygon_points()
     server_name = get_computer_name()
     logic_handlers = {}
+    ocr_init = ocr_model_init()
     for camera_id in camera_ids:
         print(f"http://{get_ipv4_address()}:8005/stream-manage/output/{MODULE_ID}-{camera_id}")
         event_handler_config = EventHandlerConfig(
@@ -47,7 +49,7 @@ def initialize_logic_handler(camera_ids, polygons):
             event_handler_config=event_handler_config,
             # plc_controller_config=plc_controller_config
         )
-        logic_handlers[camera_id] = LogicHandler(config=logic_config, points=dict_points[camera_id], camera_id=camera_id, lp_detector=LP_DETECTOR)
+        logic_handlers[camera_id] = LogicHandler(config=logic_config, points=dict_points[camera_id], camera_id=camera_id, ocr_init=ocr_init)
     
     return logic_handlers
         
@@ -89,7 +91,7 @@ def inference_module(logic_handlers, frame_reader):
             for frame_dict in frames_dict.items():
                 key, value = frame_dict
 
-                logic_handlers[key].run(value, results_vehicle[key], results_lp[key])
+                logic_handlers[key].update(value, results_vehicle[key], results_lp[key])
                 logic_handlers[key].fps(show=True)
                 
             key = cv2.waitKey(1) & 0xFF

@@ -4,10 +4,10 @@ import requests
 import threading
 from typing import Optional
 from system.utils import get_computer_name, get_ipv4_address
-
+import base64
 from pydantic import BaseModel
 from system.image_utils import image_resize, image_to_bytes, save_image, save_video
-
+import cv2
 class EventHandlerConfig(BaseModel):
     post_frame_url: str
     post_event_url: str
@@ -63,17 +63,17 @@ class EventHandler(EventHandlerBase):
 
     def _get_event_image_info(self, timestamp) -> EventImageInfo:
         image_log_filename = f"{self._config.module_id}_{self._config.camera_id}_{timestamp}.jpg"
-        image_log_uri = f"/public/videos/{self._config.module_id}/{self._config.camera_id}/{image_log_filename}"
+        image_log_uri = f"/public/images/{self._config.module_id}/{self._config.camera_id}/{image_log_filename}"
 
-        image_root_path = f"C:/Users/delai/source/repos/Fence/logs/videos/{self._config.module_id}/{self._config.camera_id}"
+        image_root_path = f"C:/Users/Admin/source/repos/VMS-OCR/vehicle-detection/logs/images/{self._config.module_id}/{self._config.camera_id}"
         if not os.path.exists(image_root_path):
             os.makedirs(image_root_path)
 
         image_log_path = f"{image_root_path}/{image_log_filename}"
 
         image_org_filename = f"{self._config.module_id}_{self._config.camera_id}_{timestamp}_org.jpg"
-        image_org_uri = f"/public/videos/{self._config.module_id}/{self._config.camera_id}/{image_org_filename}"
-        image_org_root_path = f"C:/Users/delai/source/repos/Fence/logs/videos/{self._config.module_id}/{self._config.camera_id}"
+        image_org_uri = f"/public/images/{self._config.module_id}/{self._config.camera_id}/{image_org_filename}"
+        image_org_root_path = f"C:/Users/Admin/source/repos/VMS-OCR/vehicle-detection/logs/images/{self._config.module_id}/{self._config.camera_id}"
         if not os.path.exists(image_org_root_path):
             os.makedirs(image_org_root_path)
 
@@ -115,13 +115,15 @@ class EventHandler(EventHandlerBase):
             video_org_path=video_org_path
         )
     
-    def _post_event(self, timestamp, image_uri):
+    def _post_event(self, timestamp, image_uri, lp, img_base64):
         event_message = {
             "camera_id": self._config.camera_id,
             "module_id": self._config.module_id,
             "timestamp": int(timestamp),
             "image_uri": image_uri,
-            "msgType": self._config.msgType
+            "msgType": self._config.msgType,
+            "lp": lp,
+            "image_base64": img_base64
         }
         requests.post(self._config.post_event_url, json=event_message, timeout=2)
 
@@ -151,10 +153,10 @@ class EventHandler(EventHandlerBase):
     def update_video(self, frame_org, frame_log):
         self._queue_video.append((frame_org, frame_log))
 
-    def update(self, frame_org, frame_log):
-        self._queue.append((frame_org, frame_log))
+    def update(self, frame_org, frame_log, lp):
+        self._queue.append((frame_org, frame_log, lp))
 
-    def _process(self, frame_org, frame_log):
+    def _process(self, frame_org, frame_log, lp):
         timestamp = int(time.time())
         event_image_info = self._get_event_image_info(timestamp)
 
@@ -163,11 +165,17 @@ class EventHandler(EventHandlerBase):
 
         if not self._config.post_event_url:
             return 
-    
-        self._post_event(timestamp, event_image_info.image_log_uri)
+
+        frame_log = cv2.resize(frame_log, (0, 0), fx=1.0, fy=1.0)
+        _, img_encoded = cv2.imencode('.jpg', frame_log, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+
+        # Convert the binary format to base64
+        base64_encoded = base64.b64encode(img_encoded.tobytes()).decode('utf-8')
+
+        self._post_event(timestamp, event_image_info.image_log_uri, lp, base64_encoded)
         
-        # save_image(event_image_info.image_log_path, frame_log)
-        # save_image(event_image_info.image_org_path, frame_org)
+        save_image(event_image_info.image_log_path, frame_log)
+        save_image(event_image_info.image_org_path, frame_org)
         
     def _process_video(self, frames_org, frames_log):
         print('Starting handle video')
@@ -196,8 +204,8 @@ class EventHandler(EventHandlerBase):
     def _run(self):
         while True:
             if len(self._queue) > 0:
-                frame_org, frame_log = self._queue.pop(0)
-                self._process(frame_org, frame_log)
+                frame_org, frame_log, lp = self._queue.pop(0)
+                self._process(frame_org, frame_log, lp)
             if len(self._queue_video) > 0:
                 frames_org, frames_log = self._queue_video.pop(0)
                 self._process_video(frames_org, frames_log)

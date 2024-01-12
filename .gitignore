@@ -167,7 +167,7 @@ vehicle-detection/module_ocr/doc
 vehicle-detection/module_ocr/inference
 vehicle-detection/module_ocr/deploy
 vehicle-detection/module_ocr/applications
-vehicle-detection/logs/
+vehicle-detection/logs/images
 
 
 
